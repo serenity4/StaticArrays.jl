@@ -27,16 +27,33 @@ end
     getfield(v,:data)[i]
 end
 
+# copied from `jl_is_layout_opaque`,
+# which is not available for use becaused marked as static inline.
+function is_layout_opaque(@nospecialize(T::DataType))
+    layout = unsafe_load(convert(Ptr{Base.DataTypeLayout}, T.layout))
+    layout.nfields == 0 && layout.npointers > 0
+end
+is_layout_opaque(T) = true
+
 @propagate_inbounds function setindex!(v::MArray, val, i::Int)
     @boundscheck checkbounds(v,i)
     T = eltype(v)
 
     if isbitstype(T)
         GC.@preserve v unsafe_store!(Base.unsafe_convert(Ptr{T}, pointer_from_objref(v)), convert(T, val), i)
+    elseif isconcretetype(T) && ismutabletype(T) && !is_layout_opaque(T)
+        # The tuple contains object pointers.
+        # Replace the pointer at `i` by that of the new mutable value.
+        GC.@preserve v begin
+            data_ptr = Ptr{UInt}(pointer_from_objref(v))
+            value_ptr = Ptr{UInt}(pointer_from_objref(val))
+            unsafe_store!(data_ptr, value_ptr, i)
+        end
     else
-        # This one is unsafe (#27)
-        # unsafe_store!(Base.unsafe_convert(Ptr{Ptr{Nothing}}, pointer_from_objref(v.data)), pointer_from_objref(val), i)
-        error("setindex!() with non-isbitstype eltype is not supported by StaticArrays. Consider using SizedArray.")
+        # For non-isbitstype immutable data, it is safer to replace the whole `.data` field directly after update.
+        # For more context see #27.
+        updated = Base.setindex(v.data, convert(T, val), i)
+        v.data = updated
     end
 
     return v

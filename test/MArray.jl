@@ -209,8 +209,30 @@
         @test_throws BoundsError setindex!(mm, 4, 82)
 
         # setindex with non-elbits type
+
         m = MArray{Tuple{2,2,2}, String}(undef)
-        @test_throws ErrorException setindex!(m, "a", 1, 1, 1)
+        @test_throws UndefRefError setindex!(m, "a", 1, 1, 1)
+
+        m = @MArray ["a" "b"; "c" "d"]
+        setindex!(m, "z", 1, 1)
+        @test m[1, 1] == "z"
+        setindex!(m, "y", 1, 2)
+        @test m[1, 2] == "y"
+
+        m = @MArray [[], []]
+        setindex!(m, [2], 2)
+        @test m[2] == [2]
+
+        m = @MArray [Ref([1, 2]), Ref([3, 4])]
+        ref = Ref([5, 6])
+        setindex!(m, ref, 2)
+        @test m[2] === ref
+        ref[] = [7, 8]
+        @test m[2][] == [7, 8]
+
+        m = @MArray Any["a", "b"]
+        setindex!(m, "c", 2)
+        @test m[2] == "c"
     end
 
     @testset "promotion" begin
