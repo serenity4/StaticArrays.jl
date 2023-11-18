@@ -46,7 +46,7 @@ is_layout_opaque(T) = true
         # Replace the pointer at `i` by that of the new mutable value.
         GC.@preserve v begin
             data_ptr = Ptr{UInt}(pointer_from_objref(v))
-            value_ptr = Ptr{UInt}(pointer_from_objref(val))
+            value_ptr = Ptr{UInt}(pointer_from_objref(convert(T, val)))
             unsafe_store!(data_ptr, value_ptr, i)
         end
     else
